@@ -1,0 +1,11 @@
+{
+  "name": "purescript-avar-monadask",
+  "set": "psc-0.11.7-20180524",
+  "source": "https://github.com/purescript/package-sets.git",
+  "depends": [
+    "prelude",
+    "avar",
+    "aff",
+    "transformers"
+  ]
+}
