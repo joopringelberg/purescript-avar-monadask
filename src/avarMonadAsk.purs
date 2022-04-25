@@ -1,10 +1,34 @@
 module Control.Monad.AvarMonadAsk (get, gets, put, modify) where
 
+import Control.Monad.Reader (class MonadAsk, ask)
+import Control.Monad.State (class MonadState)
+import Data.Tuple (Tuple(..))
 import Effect.Aff.AVar (AVar, put, read, take) as AV
 import Effect.Aff.Class (class MonadAff, liftAff)
-import Control.Monad.Reader (class MonadAsk, ask)
-import Prelude ((>>=), (<<<), bind, pure, ($), Unit, (>=>))
+import Prelude (class Functor, Unit, bind, discard, pure, ($), (<<<), (>=>), (>>=), (<$>))
 
+state :: forall a s m.
+  MonadAff m =>
+  MonadAsk (AV.AVar s) m =>
+  (s -> (Tuple a s)) -> m a
+state f = do
+  st <- get
+  (Tuple a s) <- pure (f st)
+  put s
+  pure a
+
+-- newtype AvarMonadAsk m = AvarMonadAsk m
+
+-- instance functorAvarMonadAsk :: Functor m => Functor AvarMonadAsk where
+--   map f (AvarMonadAsk m) = AvarMonadAsk (f <$> m)
+--
+-- instance monadStateAvarMonadAsk :: (MonadAff m, MonadAsk (AV.AVar s) m) => MonadState s AvarMonadAsk where
+--   state f = do
+--     st <- get
+--     (Tuple a s) <- pure (f st)
+--     put s
+--     pure a
+--
 -- | Returns the AVar holding the state.
 getAVarWithState :: forall s m. MonadAsk (AV.AVar s) m => m (AV.AVar s)
 getAVarWithState = ask
@@ -31,7 +55,7 @@ gets f = get >>= pure <<< f
 -- | passed in is empty.
 -- | Compares with StateT put.
 put :: forall s m. MonadAff m => MonadAsk (AV.AVar s) m => s -> m Unit
-put state = getAVarWithState >>= (liftAff <<< (replaceAVarContent state))
+put st = getAVarWithState >>= (liftAff <<< (replaceAVarContent st))
 
 -- | Make an AVar empty. Blocks as long as the AVar passed in is empty.
 clearVar :: forall a m. MonadAff m => AV.AVar a -> m (AV.AVar a)
