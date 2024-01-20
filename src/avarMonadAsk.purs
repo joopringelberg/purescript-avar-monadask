@@ -1,11 +1,10 @@
 module Control.Monad.AvarMonadAsk (get, gets, put, modify) where
 
 import Control.Monad.Reader (class MonadAsk, ask)
-import Control.Monad.State (class MonadState)
 import Data.Tuple (Tuple(..))
 import Effect.Aff.AVar (AVar, put, read, take) as AV
 import Effect.Aff.Class (class MonadAff, liftAff)
-import Prelude (class Functor, Unit, bind, discard, pure, ($), (<<<), (>=>), (>>=), (<$>))
+import Prelude (Unit, bind, discard, pure, ($), (<<<), (>=>), (>>=))
 
 state :: forall a s m.
   MonadAff m =>
@@ -43,6 +42,15 @@ get = do
   (as :: AV.AVar s) <- getAVarWithState
   liftAff $ AV.read as
 
+take :: forall s m.
+  MonadAff m =>
+  MonadAsk (AV.AVar s) m =>
+  m s
+take = do
+  (as :: AV.AVar s) <- getAVarWithState
+  liftAff $ AV.take as
+
+
 -- | Returns the result of applying a function to the state.
 -- | Compares with StateT gets.
 gets :: forall s m a.
@@ -70,10 +78,19 @@ replaceAVarContent :: forall a m.
   a -> AV.AVar a -> m Unit
 replaceAVarContent value = liftAff <<< clearVar >=> liftAff <<< AV.put value
 
--- | Replace the content of the AVar holding the state, with the result of applying a function to its contents. Blocks as long as the AVar is empty; blocks while the content is modified.
--- | Compares with StateT modify.
-modify :: forall s m.
+-- | Notice that we block the AVar by taking its value.
+-- | I would have liked to put the modified value back in the Effect,
+-- | rather than in Aff, to make sure that no other asynchronous operation
+-- | could intervene. This happend when I defined this operation in terms of 
+-- | the take and put of this module, leading to a catch-22 where two or more 
+-- | were waiting for each other.
+-- | With the current solution that problem hasn't been observed.
+modify  :: forall s m.
   MonadAff m =>
   MonadAsk (AV.AVar s) m =>
   (s -> s) -> m Unit
-modify f = get >>= put <<< f
+modify f = do
+  (as :: AV.AVar s) <- getAVarWithState
+  liftAff do 
+    v <- AV.take as
+    AV.put (f v) as
